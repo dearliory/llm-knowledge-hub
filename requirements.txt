@@ -1,0 +1,12 @@
+langchain
+langchain_chroma
+langchain_community
+langchain_core
+langchain_ollama
+numpy
+ollama
+openpyxl
+pandas
+pymupdf
+streamlit
+tinydb
