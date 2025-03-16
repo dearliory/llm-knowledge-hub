@@ -3,6 +3,7 @@ import streamlit as st
 import ollama
 import os
 
+import client
 import context
 import database
 import injest
@@ -23,11 +24,16 @@ def _get_context_options():
     return [CONTEXT_NAME_DEFAULT] + database.list_collections()
 
 
-def _load_data_from(folder_or_file: str):
+def _get_model_names():
+    """The model names for the available Ollama models."""
+    return [x.model for x in ollama.list().models]
+
+
+def _load_data_from(client_id: str, folder_or_file: str):
     if os.path.exists(folder_or_file):
         try:
             with st.spinner(f"Injesting the data from {folder_or_file}..."):
-                injest.add_folder_or_file(folder_or_file)
+                injest.add_folder_or_file(client_id, folder_or_file)
             st.success("Data successfully loaded!")
             st.rerun()
 
@@ -38,22 +44,18 @@ def _load_data_from(folder_or_file: str):
 
 def _selectbox_model_on_change(key):
     model = st.session_state[key]
-    if model.endswith(":32b"):
-        st.session_state.context_size = 2048
+    setting = client.setting
+    if model == "llama3.3":
+        setting.context_size = 1024
+    elif model.endswith(":32b"):
+        setting.context_size = 2048
     else:
-        st.session_state.context_size = 4096
+        setting.context_size = 4096
+    client.setting = setting
 
-
-def _init_session_state(**kwargs):
-    for key, value in kwargs.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
-
-
-_init_session_state(
-    messages = [],
-    context_size = 4096,
-    )
+# Initialize session state with unique client ID
+option = client.Option()
+client = client.Client()
 
 st.set_page_config(initial_sidebar_state="collapsed")
 
@@ -64,9 +66,8 @@ with st.sidebar:
     st.markdown("# Config")
     model = st.selectbox(
         label = "Select the LLM model", 
-        options = ["qwen2.5", "qwen2.5:14b", "qwen2.5:32b",
-                   "qwen2.5-coder:32b"],
-        index=1,
+        options = option.model,
+        index=0,
         key = "selectbox_model",
         on_change = _selectbox_model_on_change,
         args = ("selectbox_model",))
@@ -76,34 +77,33 @@ with st.sidebar:
     with st.expander(label = "Advanced settings", expanded=False):
         context_size = st.select_slider(
             label = "Context size",
-            options = [2048, 4096, 8192, 16384],
-            value = st.session_state.context_size)
+            options = option.context_size,
+            value = client.setting.context_size)
         num_retrieve = st.select_slider(
             label = "Number retrieve",
-            options = [5, 10, 20, 30, 40, 50, 100],
-            value = 20)
+            options = option.num_retrieve,
+            value = client.setting.num_retrieve)
         score_threshold = st.select_slider(
             label = "Score threshold",
-            options = [round(i * 0.1, 1) for i in range(11)],
-            value=0.3)
+            options = option.score_threshold,
+            value=client.setting.score_threshold)
 
     st.markdown("# Injest")      
     folder_or_file = st.text_input(
         label = "select a folder or file, click \"confirm\" to load.",
         value="/Volumes/business/Information")
     if st.button("Confirm"):
-        _load_data_from(folder_or_file)
+        _load_data_from(client.id, folder_or_file)
 
     st.markdown("# Chat")      
     if st.button("Reset chat"):
-        st.session_state.messages = []
+        client.reset_session()
 
 
 # Display chat history
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
+for message in client.session.messages:
+    with st.chat_message(message.role):
+        st.markdown(message.content)
 
 # User input for chat
 if prompt:= st.chat_input("Type here to ask a question"):
@@ -112,14 +112,14 @@ if prompt:= st.chat_input("Type here to ask a question"):
         st.markdown(prompt)
     
     # Append the prompt for session state persistence
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    client.append_message(role = "user", content = prompt)
 
     # Apply the template to include context information if the deault name 
     # (empty) is not selected. Otherwise, skip the context.
     if context_name != CONTEXT_NAME_DEFAULT:
         with st.spinner('Loading the context...'):
             context_information, metamsg = context.get_context(
-                context_name, prompt, num_retrieve, score_threshold)
+                client.id, context_name, prompt, num_retrieve, score_threshold)
             print(metamsg) # display the meta message for the chat
             prompt = (
                 f"Here is the related context\n\n {context_information}.\n\n"
@@ -136,5 +136,4 @@ if prompt:= st.chat_input("Type here to ask a question"):
         response = st.write_stream(_parse(stream))
 
         # Append the response for session state persistence
-        st.session_state.messages.append(
-            {"role": "assistant", "content": response})
+        client.append_message(role = "assistant", content = response)

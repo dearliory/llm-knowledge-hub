@@ -37,15 +37,20 @@ class Collection():
     """
     def __init__(
             self,
+            client_id: str,
             name: str,
             base_directory: str = "./resources",
             content_persist_prefix: str = "chroma_db_",
             record_persist_name: str = "injest_records.json",
             embedding_function = _DEFAULT_EMBEDDING_FUNCTION):
+        folder_path = os.path.join(base_directory, client_id)
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+
         self._content_persist_directory = os.path.join(
-            base_directory, content_persist_prefix + name)
+            folder_path, content_persist_prefix + name)
         self._record_persist_directory = os.path.join(
-            base_directory, record_persist_name)
+            folder_path, record_persist_name)
         
         self.name = name
 

@@ -106,30 +106,30 @@ def sanitize_table_name(table_name: str) -> str:
     return table_name.replace('..', '_').replace(' ', '_')
 
 
-def add_folder(folder_path: str):
+def add_folder(client_id: str, folder_path: str):
     file_paths = Path(folder_path).rglob("*.[pP][dD][fF]")
 
     name = os.path.split(folder_path)[-1]
     sanitized_name = sanitize_table_name(name)
     print(f"Connect to vector store with the name \"{sanitized_name}\".")
-    collection = database.Collection(sanitized_name)
+    collection = database.Collection(client_id, sanitized_name)
     for file_path_posix in file_paths:
         file_path = str(file_path_posix)
         process_file(file_path, collection)
 
 
-def add_file(file_path: str):
+def add_file(client_id: str, file_path: str):
     name = os.path.split(file_path)[-1]
     sanitized_name = sanitize_table_name(name)
-    collection = database.Collection(sanitized_name)
+    collection = database.Collection(client_id, sanitized_name)
     process_file(file_path, collection)
 
 
-def add_folder_or_file(folder_or_file: str):
+def add_folder_or_file(client_id: str, folder_or_file: str):
     if os.path.isdir(folder_or_file):
-        add_folder(folder_or_file)
+        add_folder(client_id, folder_or_file)
         return
     if os.path.isfile(folder_or_file):
-        add_file(folder_or_file)
+        add_file(client_id, folder_or_file)
         return
     raise FileExistsError(f"The path {folder_or_file} does not exist.") 

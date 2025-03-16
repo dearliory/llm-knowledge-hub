@@ -8,13 +8,14 @@ def _combine(texts: list[str]) -> str:
 
 
 def get_context(
+        client_id: str,
         context_name: str,
         query: str,
         num_retrieve: int = 30,
         score_threshold: float = 0.3,
     ) -> tuple[str, str]:
     """Get related context from the database."""
-    collection = database.Collection(context_name)
+    collection = database.Collection(client_id, context_name)
     texts = collection.content.get()['documents']
     
     if len(texts) > num_retrieve:
